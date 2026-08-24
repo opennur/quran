@@ -3,6 +3,8 @@
 A minimal, lightweight Android Quran reader with Arabic text and Indonesian
 translation bundled for offline reading.
 
+<img width="240" height="480" alt="1000024520" src="https://github.com/user-attachments/assets/73e95d5b-94ad-4fa1-b4a4-95013c49f7c3" />
+
 ## Features
 
 - Offline reading for all 114 surahs
