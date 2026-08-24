@@ -81,11 +81,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,6 +117,14 @@ private enum class ReaderPicker {
     PAGE,
     JUZ,
 }
+
+private val ArabicReadingTextStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = true),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.None,
+    ),
+)
 
 private fun QuranUiState.currentAyahData(): Ayah? {
     return surahs
@@ -525,8 +536,8 @@ private fun MushafFlowReader(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp)
+            .verticalScroll(scrollState),
     ) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Text(
@@ -554,7 +565,8 @@ private fun MushafFlowReader(
                     },
                 fontFamily = arabicFont,
                 fontSize = arabicFontSize,
-                lineHeight = (62 * fontScale).sp,
+                lineHeight = (72 * fontScale).sp,
+                style = ArabicReadingTextStyle,
                 textAlign = TextAlign.Start,
                 color = MaterialTheme.colorScheme.onSurface,
                 onTextLayout = { textLayout = it },
@@ -730,7 +742,8 @@ private fun AyahCard(
                         .padding(top = 2.dp),
                     fontFamily = arabicFont,
                     fontSize = (27 * fontScale).sp,
-                    lineHeight = (62 * fontScale).sp,
+                    lineHeight = (72 * fontScale).sp,
+                    style = ArabicReadingTextStyle,
                     textAlign = TextAlign.Start,
                     color = MaterialTheme.colorScheme.onSurface,
                 )

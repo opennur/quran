@@ -148,7 +148,12 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowTranslation(show: Boolean) {
         preferences.saveShowTranslation(show)
-        _uiState.update { it.copy(showTranslation = show) }
+        if (show) {
+            preferences.saveFlowingMode(false)
+            _uiState.update { it.copy(showTranslation = true, flowingMode = false) }
+        } else {
+            _uiState.update { it.copy(showTranslation = false) }
+        }
     }
 
     fun setFontScale(scale: Float) {
@@ -163,7 +168,12 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setFlowingMode(enabled: Boolean) {
         preferences.saveFlowingMode(enabled)
-        _uiState.update { it.copy(flowingMode = enabled) }
+        if (enabled) {
+            preferences.saveShowTranslation(false)
+            _uiState.update { it.copy(flowingMode = true, showTranslation = false) }
+        } else {
+            _uiState.update { it.copy(flowingMode = false) }
+        }
     }
 
     fun setTajwidEnabled(enabled: Boolean) {
