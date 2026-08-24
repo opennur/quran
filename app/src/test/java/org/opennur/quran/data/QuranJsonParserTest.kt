@@ -16,7 +16,9 @@ class QuranJsonParserTest {
               "ayahs": [{
                 "number": 1,
                 "arabic": "بِسْمِ اللّٰهِ",
-                "translation": "Dengan nama Allah"
+                "translation": "Dengan nama Allah",
+                "page": 1,
+                "juz": 1
               }]
             }]
         """.trimIndent()
@@ -27,6 +29,8 @@ class QuranJsonParserTest {
         assertEquals("Al-Fatihah", surahs.single().latinName)
         assertEquals("بِسْمِ اللّٰهِ", surahs.single().ayahs.single().arabic)
         assertEquals("Dengan nama Allah", surahs.single().ayahs.single().translation)
+        assertEquals(1, surahs.single().ayahs.single().page)
+        assertEquals(1, surahs.single().ayahs.single().juz)
     }
 
     @Test

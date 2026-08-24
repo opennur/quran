@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -105,12 +107,31 @@ private enum class Destination {
     SETTINGS,
 }
 
+private enum class ReaderPicker {
+    NONE,
+    SURAH,
+    AYAH,
+    PAGE,
+    JUZ,
+}
+
+private fun QuranUiState.currentAyahData(): Ayah? {
+    return surahs
+        .firstOrNull { it.number == selectedSurah }
+        ?.ayahs
+        ?.firstOrNull { it.number == selectedAyah }
+}
+
+private fun QuranUiState.currentPage(): Int = currentAyahData()?.page ?: 1
+
+private fun QuranUiState.currentJuz(): Int = currentAyahData()?.juz ?: 1
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuranApp(viewModel: QuranViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(Destination.READER.name) }
-    var showSurahPicker by rememberSaveable { mutableStateOf(false) }
+    var readerPicker by rememberSaveable { mutableStateOf(ReaderPicker.NONE.name) }
     val currentDestination = Destination.valueOf(destination)
 
     QuranTheme(darkMode = state.darkMode) {
@@ -140,7 +161,10 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
                     state = state,
                     viewModel = viewModel,
                     contentPadding = paddingValues,
-                    onPickSurah = { showSurahPicker = true },
+                    onPickSurah = { readerPicker = ReaderPicker.SURAH.name },
+                    onPickAyah = { readerPicker = ReaderPicker.AYAH.name },
+                    onPickPage = { readerPicker = ReaderPicker.PAGE.name },
+                    onPickJuz = { readerPicker = ReaderPicker.JUZ.name },
                 )
 
                 Destination.SEARCH -> SearchScreen(
@@ -173,16 +197,53 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
         }
     }
 
-    if (showSurahPicker && state.surahs.isNotEmpty()) {
-        SurahPicker(
-            surahs = state.surahs,
-            selectedSurah = state.selectedSurah,
-            onDismiss = { showSurahPicker = false },
-            onSelect = {
-                viewModel.selectSurah(it)
-                showSurahPicker = false
-            },
-        )
+    if (state.surahs.isNotEmpty()) {
+        when (ReaderPicker.valueOf(readerPicker)) {
+            ReaderPicker.NONE -> Unit
+            ReaderPicker.SURAH -> SurahPicker(
+                surahs = state.surahs,
+                selectedSurah = state.selectedSurah,
+                onDismiss = { readerPicker = ReaderPicker.NONE.name },
+                onSelect = {
+                    viewModel.selectSurah(it)
+                    readerPicker = ReaderPicker.NONE.name
+                },
+            )
+            ReaderPicker.AYAH -> {
+                val surah = state.surahs.firstOrNull { it.number == state.selectedSurah }
+                if (surah != null) {
+                    AyahPicker(
+                        surah = surah,
+                        selectedAyah = state.selectedAyah,
+                        onDismiss = { readerPicker = ReaderPicker.NONE.name },
+                        onSelect = {
+                            viewModel.openAyah(AyahRef(surah.number, it))
+                            readerPicker = ReaderPicker.NONE.name
+                        },
+                    )
+                }
+            }
+            ReaderPicker.PAGE -> NumberPicker(
+                title = "Page",
+                numbers = 1..604,
+                selected = state.currentPage(),
+                onDismiss = { readerPicker = ReaderPicker.NONE.name },
+                onSelect = {
+                    viewModel.openPage(it)
+                    readerPicker = ReaderPicker.NONE.name
+                },
+            )
+            ReaderPicker.JUZ -> NumberPicker(
+                title = "Juz",
+                numbers = 1..30,
+                selected = state.currentJuz(),
+                onDismiss = { readerPicker = ReaderPicker.NONE.name },
+                onSelect = {
+                    viewModel.openJuz(it)
+                    readerPicker = ReaderPicker.NONE.name
+                },
+            )
+        }
     }
 }
 
@@ -262,6 +323,9 @@ private fun ReaderScreen(
     viewModel: QuranViewModel,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
     onPickSurah: () -> Unit,
+    onPickAyah: () -> Unit,
+    onPickPage: () -> Unit,
+    onPickJuz: () -> Unit,
 ) {
     val surah = state.surahs.firstOrNull { it.number == state.selectedSurah }
     if (state.isLoading) {
@@ -310,6 +374,15 @@ private fun ReaderScreen(
             }
         }
 
+        ReaderJumpBar(
+            ayah = state.selectedAyah,
+            page = state.currentPage(),
+            juz = state.currentJuz(),
+            onPickAyah = onPickAyah,
+            onPickPage = onPickPage,
+            onPickJuz = onPickJuz,
+        )
+
         if (state.flowingMode) {
             MushafFlowReader(
                 surah = surah,
@@ -317,6 +390,8 @@ private fun ReaderScreen(
                 showTranslation = state.showTranslation,
                 tajwidEnabled = state.tajwidEnabled,
                 arabicFont = arabicFont,
+                selectedAyah = state.selectedAyah,
+                jumpToken = state.jumpToken,
                 onAyahTap = {
                     viewModel.openAyah(it)
                     viewModel.updateLastRead(it)
@@ -330,6 +405,42 @@ private fun ReaderScreen(
                 arabicFont = arabicFont,
                 tajwidEnabled = state.tajwidEnabled,
             )
+        }
+    }
+}
+
+@Composable
+private fun ReaderJumpBar(
+    ayah: Int,
+    page: Int,
+    juz: Int,
+    onPickAyah: () -> Unit,
+    onPickPage: () -> Unit,
+    onPickJuz: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        OutlinedButton(
+            onClick = onPickAyah,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text("Ayah $ayah", style = MaterialTheme.typography.labelMedium)
+        }
+        OutlinedButton(
+            onClick = onPickPage,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text("Page $page", style = MaterialTheme.typography.labelMedium)
+        }
+        OutlinedButton(
+            onClick = onPickJuz,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text("Juz $juz", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -393,81 +504,87 @@ private fun MushafFlowReader(
     showTranslation: Boolean,
     arabicFont: FontFamily,
     tajwidEnabled: Boolean,
+    selectedAyah: Int,
+    jumpToken: Long,
     onAyahTap: (AyahRef) -> Unit,
 ) {
     val text = remember(surah.number, tajwidEnabled) { buildMushafText(surah, tajwidEnabled) }
     var textLayout by remember(surah.number) { mutableStateOf<TextLayoutResult?>(null) }
+    val scrollState = rememberScrollState()
     val arabicFontSize = (27 * fontScale).sp
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            bottom = 24.dp,
-        ),
+    LaunchedEffect(jumpToken, textLayout, selectedAyah) {
+        val annotation = text.getStringAnnotations(AYAH_ANNOTATION, 0, text.length)
+            .firstOrNull { it.item == "${surah.number}:$selectedAyah" }
+        val top = annotation?.let { range -> textLayout?.getBoundingBox(range.start)?.top }
+        if (top != null) {
+            scrollState.animateScrollTo((top - 24f).coerceAtLeast(0f).toInt())
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
     ) {
-        item {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                Text(
-                    text = text,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = "${surah.latinName} Mushaf reading mode" }
-                        .pointerInput(text, textLayout) {
-                            detectTapGestures { position ->
-                                val offset = textLayout?.getOffsetForPosition(position) ?: return@detectTapGestures
-                                text.getStringAnnotations(AYAH_ANNOTATION, offset, offset)
-                                    .firstOrNull()
-                                    ?.item
-                                    ?.split(":")
-                                    ?.takeIf { it.size == 2 }
-                                    ?.let { parts ->
-                                        onAyahTap(
-                                            AyahRef(
-                                                surah = parts[0].toIntOrNull() ?: return@let,
-                                                ayah = parts[1].toIntOrNull() ?: return@let,
-                                            ),
-                                        )
-                                    }
-                            }
-                        },
-                    fontFamily = arabicFont,
-                    fontSize = arabicFontSize,
-                    lineHeight = (62 * fontScale).sp,
-                    textAlign = TextAlign.Start,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    onTextLayout = { textLayout = it },
-                )
-            }
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            Text(
+                text = text,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "${surah.latinName} Mushaf reading mode" }
+                    .pointerInput(text, textLayout) {
+                        detectTapGestures { position ->
+                            val offset = textLayout?.getOffsetForPosition(position) ?: return@detectTapGestures
+                            text.getStringAnnotations(AYAH_ANNOTATION, offset, offset)
+                                .firstOrNull()
+                                ?.item
+                                ?.split(":")
+                                ?.takeIf { it.size == 2 }
+                                ?.let { parts ->
+                                    onAyahTap(
+                                        AyahRef(
+                                            surah = parts[0].toIntOrNull() ?: return@let,
+                                            ayah = parts[1].toIntOrNull() ?: return@let,
+                                        ),
+                                    )
+                                }
+                        }
+                    },
+                fontFamily = arabicFont,
+                fontSize = arabicFontSize,
+                lineHeight = (62 * fontScale).sp,
+                textAlign = TextAlign.Start,
+                color = MaterialTheme.colorScheme.onSurface,
+                onTextLayout = { textLayout = it },
+            )
         }
         if (showTranslation) {
-            item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-                Text(
-                    "Indonesian translation",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.height(4.dp))
-                Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                    surah.ayahs.forEach { ayah ->
-                        Row(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.Top,
-                        ) {
-                            Text(
-                                toArabicIndic(ayah.number),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                ayah.translation,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            Text(
+                "Indonesian translation",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                surah.ayahs.forEach { ayah ->
+                    Row(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            toArabicIndic(ayah.number),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            ayah.translation,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -895,6 +1012,75 @@ private fun TajwidLegendRow(vararg entries: Pair<TajwidCategory, String>) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(label, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AyahPicker(
+    surah: Surah,
+    selectedAyah: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.heightIn(max = 560.dp)) {
+            Text(
+                "Select ayah · ${surah.latinName}",
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
+                items(surah.ayahs, key = { it.number }) { ayah ->
+                    ListItem(
+                        modifier = Modifier.clickable { onSelect(ayah.number) },
+                        headlineContent = { Text("Ayah ${ayah.number}") },
+                        supportingContent = { Text(ayah.translation, maxLines = 1) },
+                        leadingContent = {
+                            Text(toArabicIndic(ayah.number), style = MaterialTheme.typography.titleMedium)
+                        },
+                        trailingContent = {
+                            if (ayah.number == selectedAyah) {
+                                Icon(Icons.Default.Star, contentDescription = "Selected")
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NumberPicker(
+    title: String,
+    numbers: IntRange,
+    selected: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.heightIn(max = 560.dp)) {
+            Text(
+                "Select $title",
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
+                items(numbers.toList(), key = { it }) { number ->
+                    ListItem(
+                        modifier = Modifier.clickable { onSelect(number) },
+                        headlineContent = { Text("$title $number") },
+                        trailingContent = {
+                            if (number == selected) {
+                                Icon(Icons.Default.Star, contentDescription = "Selected")
+                            }
+                        },
+                    )
+                }
             }
         }
     }

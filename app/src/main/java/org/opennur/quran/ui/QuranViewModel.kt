@@ -100,6 +100,20 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateLastRead(ref: AyahRef) {
         preferences.saveLastRead(ref)
+        _uiState.update {
+            it.copy(
+                selectedSurah = ref.surah,
+                selectedAyah = ref.ayah,
+            )
+        }
+    }
+
+    fun openPage(page: Int) {
+        openFirstAyah { it.page == page }
+    }
+
+    fun openJuz(juz: Int) {
+        openFirstAyah { it.juz == juz }
     }
 
     fun toggleBookmark(ref: AyahRef) {
@@ -155,6 +169,16 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
     fun setTajwidEnabled(enabled: Boolean) {
         preferences.saveTajwidEnabled(enabled)
         _uiState.update { it.copy(tajwidEnabled = enabled) }
+    }
+
+    private fun openFirstAyah(predicate: (org.opennur.quran.data.Ayah) -> Boolean) {
+        val target = _uiState.value.surahs.asSequence()
+            .flatMap { surah ->
+                surah.ayahs.asSequence().map { ayah -> AyahRef(surah.number, ayah.number) to ayah }
+            }
+            .firstOrNull { (_, ayah) -> predicate(ayah) }
+            ?.first
+        if (target != null) openAyah(target)
     }
 
     private fun key(ref: AyahRef): String = "${ref.surah}:${ref.ayah}"

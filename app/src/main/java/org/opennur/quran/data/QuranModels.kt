@@ -4,6 +4,8 @@ data class Ayah(
     val number: Int,
     val arabic: String,
     val translation: String,
+    val page: Int,
+    val juz: Int,
 )
 
 data class Surah(

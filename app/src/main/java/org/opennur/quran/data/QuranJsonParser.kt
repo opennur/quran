@@ -17,6 +17,8 @@ object QuranJsonParser {
                                 number = sourceAyah.getInt("number"),
                                 arabic = sourceAyah.getString("arabic"),
                                 translation = sourceAyah.getString("translation"),
+                                page = sourceAyah.getInt("page"),
+                                juz = sourceAyah.getInt("juz"),
                             ),
                         )
                     }

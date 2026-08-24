@@ -23,9 +23,15 @@ def main() -> None:
             assert ayah["arabic"].strip(), (surah["number"], ayah["number"])
             assert ayah["translation"].strip(), (surah["number"], ayah["number"])
             assert "\u08D6" not in ayah["arabic"], (surah["number"], ayah["number"])
+            assert 1 <= ayah["page"] <= 604, (surah["number"], ayah["number"])
+            assert 1 <= ayah["juz"] <= 30, (surah["number"], ayah["number"])
         ayah_count += len(ayahs)
 
     assert ayah_count == 6236, ayah_count
+    pages = {ayah["page"] for surah in surahs for ayah in surah["ayahs"]}
+    juz = {ayah["juz"] for surah in surahs for ayah in surah["ayahs"]}
+    assert pages == set(range(1, 605)), (min(pages), max(pages), len(pages))
+    assert juz == set(range(1, 31)), (min(juz), max(juz), len(juz))
     print(f"Valid Quran asset: {len(surahs)} surahs, {ayah_count} ayahs")
 
 

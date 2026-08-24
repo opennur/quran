@@ -5,6 +5,10 @@ The bundled Arabic text and Indonesian translation are fetched from the
 and `teksIndonesia` from each surah response and preserves the source text
 without applying transliteration or tajwid transformations.
 
+Madani page numbers and juz numbers are sourced from the Uthmani Quran
+metadata in the [Al Quran Cloud API](https://alquran.cloud/api), then bundled
+with each ayah for offline navigation.
+
 The Arabic font is Amiri from Google Fonts and is distributed under the SIL
 Open Font License 1.1.
 
