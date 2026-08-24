@@ -1,1 +1,1 @@
-# The first release keeps shrinking disabled for predictable offline builds.
+# App-specific R8 rules can be added here as needed.
