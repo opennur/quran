@@ -1,6 +1,7 @@
 package org.opennur.quran.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -69,6 +71,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.contentDescription
@@ -76,8 +79,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -90,6 +95,8 @@ import org.opennur.quran.data.Ayah
 import org.opennur.quran.data.AyahRef
 import org.opennur.quran.data.SearchResult
 import org.opennur.quran.data.Surah
+import org.opennur.quran.data.TajwidCategory
+import org.opennur.quran.data.TajwidColorizer
 
 private enum class Destination {
     READER,
@@ -308,6 +315,7 @@ private fun ReaderScreen(
                 surah = surah,
                 fontScale = state.fontScale,
                 showTranslation = state.showTranslation,
+                tajwidEnabled = state.tajwidEnabled,
                 arabicFont = arabicFont,
                 onAyahTap = {
                     viewModel.openAyah(it)
@@ -320,6 +328,7 @@ private fun ReaderScreen(
                 state = state,
                 viewModel = viewModel,
                 arabicFont = arabicFont,
+                tajwidEnabled = state.tajwidEnabled,
             )
         }
     }
@@ -331,6 +340,7 @@ private fun SeparatedAyahReader(
     state: QuranUiState,
     viewModel: QuranViewModel,
     arabicFont: FontFamily,
+    tajwidEnabled: Boolean,
 ) {
     val listState = rememberLazyListState()
 
@@ -357,13 +367,15 @@ private fun SeparatedAyahReader(
             bottom = 16.dp,
         ),
     ) {
-        items(surah.ayahs, key = { it.number }) { ayah ->
+        itemsIndexed(surah.ayahs, key = { _, ayah -> ayah.number }) { index, ayah ->
             AyahCard(
                 surah = surah,
                 ayah = ayah,
                 fontScale = state.fontScale,
                 showTranslation = state.showTranslation,
                 arabicFont = arabicFont,
+                tajwidEnabled = tajwidEnabled,
+                nextAyah = surah.ayahs.getOrNull(index + 1),
                 bookmarked = viewModel.isBookmarked(AyahRef(surah.number, ayah.number)),
                 onBookmark = { viewModel.toggleBookmark(AyahRef(surah.number, ayah.number)) },
                 onOpen = { viewModel.updateLastRead(AyahRef(surah.number, ayah.number)) },
@@ -380,9 +392,10 @@ private fun MushafFlowReader(
     fontScale: Float,
     showTranslation: Boolean,
     arabicFont: FontFamily,
+    tajwidEnabled: Boolean,
     onAyahTap: (AyahRef) -> Unit,
 ) {
-    val text = remember(surah.number) { buildMushafText(surah) }
+    val text = remember(surah.number, tajwidEnabled) { buildMushafText(surah, tajwidEnabled) }
     var textLayout by remember(surah.number) { mutableStateOf<TextLayoutResult?>(null) }
     val arabicFontSize = (27 * fontScale).sp
 
@@ -462,10 +475,16 @@ private fun MushafFlowReader(
     }
 }
 
-private fun buildMushafText(surah: Surah): AnnotatedString = buildAnnotatedString {
+private fun buildMushafText(surah: Surah, tajwidEnabled: Boolean): AnnotatedString = buildAnnotatedString {
     surah.ayahs.forEachIndexed { index, ayah ->
         val start = length
-        append(ayah.arabic.trim())
+        append(
+            tajwidAnnotatedText(
+                text = ayah.arabic.trim(),
+                nextText = surah.ayahs.getOrNull(index + 1)?.arabic?.trim(),
+                enabled = tajwidEnabled,
+            ),
+        )
         append(" ")
         append("﴿")
         append(toArabicIndic(ayah.number))
@@ -497,6 +516,41 @@ private fun toArabicIndic(number: Int): String {
     }.joinToString("")
 }
 
+private fun tajwidAnnotatedText(
+    text: String,
+    nextText: String?,
+    enabled: Boolean,
+): AnnotatedString {
+    if (!enabled) return AnnotatedString(text)
+    val spans = TajwidColorizer.spans(text, nextText)
+    if (spans.isEmpty()) return AnnotatedString(text)
+
+    return buildAnnotatedString {
+        var cursor = 0
+        spans.forEach { span ->
+            if (cursor < span.start) append(text.substring(cursor, span.start))
+            withStyle(SpanStyle(color = tajwidColor(span.category))) {
+                append(text.substring(span.start, span.end))
+            }
+            cursor = span.end
+        }
+        if (cursor < text.length) append(text.substring(cursor))
+    }
+}
+
+private fun tajwidColor(category: TajwidCategory): Color {
+    return when (category) {
+        TajwidCategory.MAD -> Color(0xFFE56B6F)
+        TajwidCategory.GHUNNAH -> Color(0xFF2EAD72)
+        TajwidCategory.IDGHAM -> Color(0xFFFFA24C)
+        TajwidCategory.IKHFA -> Color(0xFF9EA8B3)
+        TajwidCategory.IQLAB -> Color(0xFFB88CE8)
+        TajwidCategory.QALQALAH -> Color(0xFF4F9BFF)
+        TajwidCategory.LAM_JALALAH -> Color(0xFF46C4B0)
+        TajwidCategory.WAQAF -> Color(0xFFE6B95C)
+    }
+}
+
 @Composable
 private fun AyahCard(
     surah: Surah,
@@ -504,6 +558,8 @@ private fun AyahCard(
     fontScale: Float,
     showTranslation: Boolean,
     arabicFont: FontFamily,
+    tajwidEnabled: Boolean,
+    nextAyah: Ayah?,
     bookmarked: Boolean,
     onBookmark: () -> Unit,
     onOpen: () -> Unit,
@@ -547,7 +603,11 @@ private fun AyahCard(
             }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 Text(
-                    text = ayah.arabic,
+                    text = tajwidAnnotatedText(
+                        text = ayah.arabic,
+                        nextText = nextAyah?.arabic,
+                        enabled = tajwidEnabled,
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 2.dp),
@@ -738,6 +798,22 @@ private fun SettingsScreen(
             }
             item {
                 ListItem(
+                    leadingContent = { Text("Aa", style = MaterialTheme.typography.titleMedium) },
+                    headlineContent = { Text("Tajweed colors") },
+                    supportingContent = { Text("Highlight text-based reading rules") },
+                    trailingContent = {
+                        Switch(
+                            checked = state.tajwidEnabled,
+                            onCheckedChange = viewModel::setTajwidEnabled,
+                        )
+                    },
+                )
+            }
+            if (state.tajwidEnabled) {
+                item { TajwidLegend() }
+            }
+            item {
+                ListItem(
                     leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
                     headlineContent = { Text("Dark mode") },
                     trailingContent = {
@@ -773,6 +849,52 @@ private fun SettingsScreen(
                         )
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TajwidLegend() {
+    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) {
+        Text(
+            "Color legend",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        TajwidLegendRow(
+            TajwidCategory.MAD to "Mad",
+            TajwidCategory.GHUNNAH to "Ghunnah",
+            TajwidCategory.IDGHAM to "Idgham",
+            TajwidCategory.IKHFA to "Ikhfa",
+        )
+        Spacer(Modifier.height(8.dp))
+        TajwidLegendRow(
+            TajwidCategory.IQLAB to "Iqlab",
+            TajwidCategory.QALQALAH to "Qalqalah",
+            TajwidCategory.LAM_JALALAH to "Lam Allah",
+            TajwidCategory.WAQAF to "Waqaf",
+        )
+    }
+}
+
+@Composable
+private fun TajwidLegendRow(vararg entries: Pair<TajwidCategory, String>) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        entries.forEach { (category, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(tajwidColor(category)),
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(label, style = MaterialTheme.typography.labelSmall)
             }
         }
     }

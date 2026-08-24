@@ -54,6 +54,12 @@ class QuranPreferences(context: Context) {
         preferences.edit().putBoolean(KEY_FLOWING_MODE, enabled).apply()
     }
 
+    fun tajwidEnabled(): Boolean = preferences.getBoolean(KEY_TAJWID_ENABLED, true)
+
+    fun saveTajwidEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_TAJWID_ENABLED, enabled).apply()
+    }
+
     companion object {
         private const val KEY_LAST_SURAH = "last_surah"
         private const val KEY_LAST_AYAH = "last_ayah"
@@ -62,5 +68,6 @@ class QuranPreferences(context: Context) {
         private const val KEY_FONT_SCALE = "font_scale"
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_FLOWING_MODE = "flowing_mode"
+        private const val KEY_TAJWID_ENABLED = "tajwid_enabled"
     }
 }

@@ -28,6 +28,7 @@ data class QuranUiState(
     val fontScale: Float = 1f,
     val darkMode: Boolean = false,
     val flowingMode: Boolean = false,
+    val tajwidEnabled: Boolean = true,
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -42,6 +43,7 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
             fontScale = preferences.fontScale(),
             darkMode = preferences.darkMode(),
             flowingMode = preferences.flowingMode(),
+            tajwidEnabled = preferences.tajwidEnabled(),
         ),
     )
     val uiState: StateFlow<QuranUiState> = _uiState.asStateFlow()
@@ -148,6 +150,11 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
     fun setFlowingMode(enabled: Boolean) {
         preferences.saveFlowingMode(enabled)
         _uiState.update { it.copy(flowingMode = enabled) }
+    }
+
+    fun setTajwidEnabled(enabled: Boolean) {
+        preferences.saveTajwidEnabled(enabled)
+        _uiState.update { it.copy(tajwidEnabled = enabled) }
     }
 
     private fun key(ref: AyahRef): String = "${ref.surah}:${ref.ayah}"
