@@ -22,8 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -543,6 +541,7 @@ private fun SeparatedAyahReader(
 }
 
 private const val AYAH_ANNOTATION = "ayah"
+private const val FLOW_CHUNK_SIZE = 48
 
 @Composable
 private fun MushafFlowReader(
@@ -555,84 +554,60 @@ private fun MushafFlowReader(
     jumpToken: Long,
     onAyahTap: (AyahRef) -> Unit,
 ) {
-    val text = remember(surah.number, tajwidEnabled) { buildMushafText(surah, tajwidEnabled) }
-    var textLayout by remember(surah.number) { mutableStateOf<TextLayoutResult?>(null) }
-    val scrollState = rememberScrollState()
-    val arabicFontSize = (27 * fontScale).sp
+    val chunks = remember(surah.number) { surah.ayahs.chunked(FLOW_CHUNK_SIZE) }
+    val listState = rememberLazyListState()
 
-    LaunchedEffect(jumpToken, textLayout, selectedAyah) {
-        val annotation = text.getStringAnnotations(AYAH_ANNOTATION, 0, text.length)
-            .firstOrNull { it.item == "${surah.number}:$selectedAyah" }
-        val top = annotation?.let { range -> textLayout?.getBoundingBox(range.start)?.top }
-        if (top != null) {
-            scrollState.animateScrollTo((top - 24f).coerceAtLeast(0f).toInt())
-        }
+    LaunchedEffect(jumpToken, selectedAyah, surah.number) {
+        listState.animateScrollToItem((selectedAyah - 1).coerceAtLeast(0) / FLOW_CHUNK_SIZE)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-            .verticalScroll(scrollState),
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp,
+        ),
     ) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-            Text(
-                text = text,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "${surah.latinName} Mushaf reading mode" }
-                    .pointerInput(text, textLayout) {
-                        detectTapGestures { position ->
-                            val offset = textLayout?.getOffsetForPosition(position) ?: return@detectTapGestures
-                            text.getStringAnnotations(AYAH_ANNOTATION, offset, offset)
-                                .firstOrNull()
-                                ?.item
-                                ?.split(":")
-                                ?.takeIf { it.size == 2 }
-                                ?.let { parts ->
-                                    onAyahTap(
-                                        AyahRef(
-                                            surah = parts[0].toIntOrNull() ?: return@let,
-                                            ayah = parts[1].toIntOrNull() ?: return@let,
-                                        ),
-                                    )
-                                }
-                        }
-                    },
-                fontFamily = arabicFont,
-                fontSize = arabicFontSize,
-                lineHeight = (68 * fontScale).sp,
-                style = ArabicReadingTextStyle,
-                textAlign = TextAlign.Start,
-                color = MaterialTheme.colorScheme.onSurface,
-                onTextLayout = { textLayout = it },
+        itemsIndexed(chunks, key = { index, _ -> "flow-$index" }) { index, chunk ->
+            FlowingChunk(
+                surahNumber = surah.number,
+                ayahs = chunk,
+                nextAyah = chunks.getOrNull(index + 1)?.firstOrNull(),
+                fontScale = fontScale,
+                arabicFont = arabicFont,
+                tajwidEnabled = tajwidEnabled,
+                onAyahTap = onAyahTap,
             )
         }
         if (showTranslation) {
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-            Text(
-                "Indonesian translation",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(4.dp))
-            Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                surah.ayahs.forEach { ayah ->
-                    Row(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Text(
-                            toArabicIndic(ayah.number),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            ayah.translation,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                Text(
+                    "Indonesian translation",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(4.dp))
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                    surah.ayahs.forEach { ayah ->
+                        Row(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                toArabicIndic(ayah.number),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                ayah.translation,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -640,13 +615,71 @@ private fun MushafFlowReader(
     }
 }
 
-private fun buildMushafText(surah: Surah, tajwidEnabled: Boolean): AnnotatedString = buildAnnotatedString {
-    surah.ayahs.forEachIndexed { index, ayah ->
+@Composable
+private fun FlowingChunk(
+    surahNumber: Int,
+    ayahs: List<Ayah>,
+    nextAyah: Ayah?,
+    fontScale: Float,
+    arabicFont: FontFamily,
+    tajwidEnabled: Boolean,
+    onAyahTap: (AyahRef) -> Unit,
+) {
+    val text = remember(ayahs.first().number, nextAyah?.number, tajwidEnabled) {
+        buildMushafText(surahNumber, ayahs, nextAyah, tajwidEnabled)
+    }
+    var textLayout by remember(ayahs.first().number, tajwidEnabled) {
+        mutableStateOf<TextLayoutResult?>(null)
+    }
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        Text(
+            text = text,
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = "Mushaf reading passage" }
+                .pointerInput(text, textLayout) {
+                    detectTapGestures { position ->
+                        val offset = textLayout?.getOffsetForPosition(position) ?: return@detectTapGestures
+                        text.getStringAnnotations(AYAH_ANNOTATION, offset, offset)
+                            .firstOrNull()
+                            ?.item
+                            ?.split(":")
+                            ?.takeIf { it.size == 2 }
+                            ?.let { parts ->
+                                onAyahTap(
+                                    AyahRef(
+                                        surah = parts[0].toIntOrNull() ?: return@let,
+                                        ayah = parts[1].toIntOrNull() ?: return@let,
+                                    ),
+                                )
+                            }
+                    }
+                },
+            fontFamily = arabicFont,
+            fontSize = (27 * fontScale).sp,
+            lineHeight = (68 * fontScale).sp,
+            style = ArabicReadingTextStyle,
+            textAlign = TextAlign.Start,
+            color = MaterialTheme.colorScheme.onSurface,
+            onTextLayout = { textLayout = it },
+        )
+    }
+}
+
+private fun buildMushafText(
+    surahNumber: Int,
+    ayahs: List<Ayah>,
+    nextAyah: Ayah?,
+    tajwidEnabled: Boolean,
+): AnnotatedString = buildAnnotatedString {
+    ayahs.forEachIndexed { index, ayah ->
         val start = length
         append(
             tajwidAnnotatedText(
                 text = ayah.arabic.trim(),
-                nextText = surah.ayahs.getOrNull(index + 1)?.arabic?.trim(),
+                nextText = ayahs.getOrNull(index + 1)?.arabic?.trim()
+                    ?: nextAyah?.arabic?.trim(),
                 enabled = tajwidEnabled,
             ),
         )
@@ -654,10 +687,10 @@ private fun buildMushafText(surah: Surah, tajwidEnabled: Boolean): AnnotatedStri
         append("﴿")
         append(toArabicIndic(ayah.number))
         append("﴾")
-        if (index != surah.ayahs.lastIndex) append(" ")
+        if (index != ayahs.lastIndex) append(" ")
         addStringAnnotation(
             tag = AYAH_ANNOTATION,
-            annotation = "${surah.number}:${ayah.number}",
+            annotation = "$surahNumber:${ayah.number}",
             start = start,
             end = length,
         )

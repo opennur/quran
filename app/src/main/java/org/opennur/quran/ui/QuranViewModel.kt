@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,14 @@ data class QuranUiState(
     val error: String? = null,
 )
 
+private data class SearchEntry(
+    val ref: AyahRef,
+    val surah: Surah,
+    val ayah: org.opennur.quran.data.Ayah,
+    val arabic: String,
+    val translation: String,
+)
+
 class QuranViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = QuranRepository(application)
     private val preferences = QuranPreferences(application)
@@ -46,12 +55,25 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
             tajwidEnabled = preferences.tajwidEnabled(),
         ),
     )
+    private var searchEntries: List<SearchEntry> = emptyList()
+    private var searchJob: Job? = null
     val uiState: StateFlow<QuranUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { repository.load() }
                 .onSuccess { surahs ->
+                    searchEntries = surahs.flatMap { surah ->
+                        surah.ayahs.map { ayah ->
+                            SearchEntry(
+                                ref = AyahRef(surah.number, ayah.number),
+                                surah = surah,
+                                ayah = ayah,
+                                arabic = ArabicNormalizer.normalize(ayah.arabic),
+                                translation = ayah.translation.lowercase(),
+                            )
+                        }
+                    }
                     val last = preferences.lastRead()
                     val surah = surahs.firstOrNull { it.number == last.surah } ?: surahs.first()
                     val ayah = last.ayah.coerceIn(1, surah.ayahs.size)
@@ -130,20 +152,24 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setQuery(query: String) {
-        val normalizedQuery = ArabicNormalizer.normalize(query)
-        val results = if (normalizedQuery.isBlank()) {
-            emptyList()
-        } else {
-            _uiState.value.surahs.flatMap { surah ->
-                surah.ayahs.mapNotNull { ayah ->
-                    val arabicMatch = ArabicNormalizer.normalize(ayah.arabic)
-                        .contains(normalizedQuery)
-                    val translationMatch = ayah.translation.lowercase().contains(normalizedQuery)
-                    if (arabicMatch || translationMatch) SearchResult(surah, ayah) else null
+        searchJob?.cancel()
+        _uiState.update { it.copy(query = query, searchResults = emptyList()) }
+        if (query.isBlank()) return
+
+        searchJob = viewModelScope.launch(Dispatchers.Default) {
+            val normalizedQuery = ArabicNormalizer.normalize(query)
+            if (normalizedQuery.isBlank()) return@launch
+            val results = searchEntries.asSequence()
+                .filter { entry ->
+                    entry.arabic.contains(normalizedQuery) ||
+                        entry.translation.contains(normalizedQuery)
                 }
+                .map { entry -> SearchResult(entry.surah, entry.ayah) }
+                .toList()
+            _uiState.update { current ->
+                if (current.query == query) current.copy(searchResults = results) else current
             }
         }
-        _uiState.update { it.copy(query = query, searchResults = results) }
     }
 
     fun setShowTranslation(show: Boolean) {
