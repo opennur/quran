@@ -437,19 +437,28 @@ private fun ReaderJumpBar(
     ) {
         OutlinedButton(
             onClick = onPickAyah,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .height(36.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
         ) {
             Text("Ayah $ayah", style = MaterialTheme.typography.labelMedium)
         }
         OutlinedButton(
             onClick = onPickPage,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .height(36.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
         ) {
             Text("Page $page", style = MaterialTheme.typography.labelMedium)
         }
         OutlinedButton(
             onClick = onPickJuz,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .height(36.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
         ) {
             Text("Juz $juz", style = MaterialTheme.typography.labelMedium)
         }
@@ -536,7 +545,7 @@ private fun MushafFlowReader(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp)
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             .verticalScroll(scrollState),
     ) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -565,7 +574,7 @@ private fun MushafFlowReader(
                     },
                 fontFamily = arabicFont,
                 fontSize = arabicFontSize,
-                lineHeight = (72 * fontScale).sp,
+                lineHeight = (68 * fontScale).sp,
                 style = ArabicReadingTextStyle,
                 textAlign = TextAlign.Start,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -742,7 +751,7 @@ private fun AyahCard(
                         .padding(top = 2.dp),
                     fontFamily = arabicFont,
                     fontSize = (27 * fontScale).sp,
-                    lineHeight = (72 * fontScale).sp,
+                    lineHeight = (68 * fontScale).sp,
                     style = ArabicReadingTextStyle,
                     textAlign = TextAlign.Start,
                     color = MaterialTheme.colorScheme.onSurface,
