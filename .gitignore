@@ -8,6 +8,8 @@ build/
 .idea/
 *.iml
 local.properties
+/keystore.properties
+/keystore/
 
 # App build output
 app/build/
