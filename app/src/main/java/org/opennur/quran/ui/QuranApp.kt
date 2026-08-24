@@ -3,6 +3,7 @@ package org.opennur.quran.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -556,10 +557,26 @@ private fun MushafFlowReader(
 ) {
     val chunks = remember(surah.number) { surah.ayahs.chunked(FLOW_CHUNK_SIZE) }
     val listState = rememberLazyListState()
+    var targetOffset by remember { mutableStateOf<Float?>(null) }
+    var targetChunkReady by remember { mutableStateOf(false) }
+    var targetApplied by remember { mutableStateOf(false) }
+    val targetChunk = (selectedAyah - 1).coerceAtLeast(0) / FLOW_CHUNK_SIZE
 
     LaunchedEffect(jumpToken, selectedAyah, surah.number) {
-        listState.animateScrollToItem((selectedAyah - 1).coerceAtLeast(0) / FLOW_CHUNK_SIZE)
+        targetOffset = null
+        targetChunkReady = false
+        targetApplied = false
+        listState.animateScrollToItem(targetChunk)
+        targetChunkReady = true
     }
+    LaunchedEffect(jumpToken, targetOffset, targetChunkReady) {
+        val offset = targetOffset ?: return@LaunchedEffect
+        if (targetChunkReady && !targetApplied) {
+            listState.scrollBy((offset - 24f).coerceAtLeast(0f))
+            targetApplied = true
+        }
+    }
+    val targetAyah = selectedAyah
 
     LazyColumn(
         state = listState,
@@ -571,14 +588,23 @@ private fun MushafFlowReader(
         ),
     ) {
         itemsIndexed(chunks, key = { index, _ -> "flow-$index" }) { index, chunk ->
+            val chunkTargetAyah = targetAyah.takeIf { ayah ->
+                chunk.firstOrNull()?.number?.let { first ->
+                    ayah in first..(chunk.lastOrNull()?.number ?: first)
+                } == true
+            }
             FlowingChunk(
                 surahNumber = surah.number,
                 ayahs = chunk,
                 nextAyah = chunks.getOrNull(index + 1)?.firstOrNull(),
+                targetAyah = chunkTargetAyah,
                 fontScale = fontScale,
                 arabicFont = arabicFont,
                 tajwidEnabled = tajwidEnabled,
                 onAyahTap = onAyahTap,
+                onTargetOffset = { offset ->
+                    if (chunkTargetAyah != null) targetOffset = offset
+                },
             )
         }
         if (showTranslation) {
@@ -620,10 +646,12 @@ private fun FlowingChunk(
     surahNumber: Int,
     ayahs: List<Ayah>,
     nextAyah: Ayah?,
+    targetAyah: Int?,
     fontScale: Float,
     arabicFont: FontFamily,
     tajwidEnabled: Boolean,
     onAyahTap: (AyahRef) -> Unit,
+    onTargetOffset: (Float?) -> Unit,
 ) {
     val text = remember(ayahs.first().number, nextAyah?.number, tajwidEnabled) {
         buildMushafText(surahNumber, ayahs, nextAyah, tajwidEnabled)
@@ -662,7 +690,15 @@ private fun FlowingChunk(
             style = ArabicReadingTextStyle,
             textAlign = TextAlign.Start,
             color = MaterialTheme.colorScheme.onSurface,
-            onTextLayout = { textLayout = it },
+            onTextLayout = { layout ->
+                textLayout = layout
+                val offset = targetAyah?.let { ayah ->
+                    text.getStringAnnotations(AYAH_ANNOTATION, 0, text.length)
+                        .firstOrNull { annotation -> annotation.item == "$surahNumber:$ayah" }
+                        ?.let { annotation -> layout.getBoundingBox(annotation.start).top }
+                }
+                if (targetAyah != null) onTargetOffset(offset)
+            },
         )
     }
 }
