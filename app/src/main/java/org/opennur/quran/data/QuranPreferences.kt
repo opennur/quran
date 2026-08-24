@@ -48,6 +48,12 @@ class QuranPreferences(context: Context) {
         preferences.edit().putBoolean(KEY_DARK_MODE, enabled).apply()
     }
 
+    fun flowingMode(): Boolean = preferences.getBoolean(KEY_FLOWING_MODE, false)
+
+    fun saveFlowingMode(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_FLOWING_MODE, enabled).apply()
+    }
+
     companion object {
         private const val KEY_LAST_SURAH = "last_surah"
         private const val KEY_LAST_AYAH = "last_ayah"
@@ -55,5 +61,6 @@ class QuranPreferences(context: Context) {
         private const val KEY_SHOW_TRANSLATION = "show_translation"
         private const val KEY_FONT_SCALE = "font_scale"
         private const val KEY_DARK_MODE = "dark_mode"
+        private const val KEY_FLOWING_MODE = "flowing_mode"
     }
 }

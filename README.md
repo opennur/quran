@@ -6,6 +6,7 @@ translation bundled for offline reading.
 ## Features
 
 - Offline reading for all 114 surahs
+- Optional Madani-style Mushaf flow mode with Arabic-Indic ayah markers
 - Uthmani Arabic text with bundled Amiri font
 - Indonesian translation toggle
 - Arabic and Indonesian ayah search

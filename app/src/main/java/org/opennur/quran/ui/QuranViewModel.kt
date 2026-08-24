@@ -27,6 +27,7 @@ data class QuranUiState(
     val showTranslation: Boolean = true,
     val fontScale: Float = 1f,
     val darkMode: Boolean = false,
+    val flowingMode: Boolean = false,
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -40,6 +41,7 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
             showTranslation = preferences.showTranslation(),
             fontScale = preferences.fontScale(),
             darkMode = preferences.darkMode(),
+            flowingMode = preferences.flowingMode(),
         ),
     )
     val uiState: StateFlow<QuranUiState> = _uiState.asStateFlow()
@@ -141,6 +143,11 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
     fun setDarkMode(enabled: Boolean) {
         preferences.saveDarkMode(enabled)
         _uiState.update { it.copy(darkMode = enabled) }
+    }
+
+    fun setFlowingMode(enabled: Boolean) {
+        preferences.saveFlowingMode(enabled)
+        _uiState.update { it.copy(flowingMode = enabled) }
     }
 
     private fun key(ref: AyahRef): String = "${ref.surah}:${ref.ayah}"

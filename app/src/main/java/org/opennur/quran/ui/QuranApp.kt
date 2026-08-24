@@ -1,6 +1,7 @@
 package org.opennur.quran.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -60,17 +62,22 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -104,6 +111,8 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
             topBar = {
                 if (currentDestination == Destination.READER) {
                     ReaderTopBar(
+                        flowingMode = state.flowingMode,
+                        onToggleFlow = { viewModel.setFlowingMode(!state.flowingMode) },
                         onSearch = { destination = Destination.SEARCH.name },
                         onBookmarks = { destination = Destination.BOOKMARKS.name },
                         onSettings = { destination = Destination.SETTINGS.name },
@@ -173,6 +182,8 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReaderTopBar(
+    flowingMode: Boolean,
+    onToggleFlow: () -> Unit,
     onSearch: () -> Unit,
     onBookmarks: () -> Unit,
     onSettings: () -> Unit,
@@ -189,6 +200,12 @@ private fun ReaderTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onToggleFlow) {
+                Icon(
+                    imageVector = if (flowingMode) Icons.Default.ViewAgenda else Icons.AutoMirrored.Filled.MenuBook,
+                    contentDescription = if (flowingMode) "Switch to card view" else "Switch to Mushaf view",
+                )
+            }
             IconButton(onClick = onSearch) {
                 Icon(Icons.Default.Search, contentDescription = "Search ayahs")
             }
@@ -249,22 +266,7 @@ private fun ReaderScreen(
         return
     }
 
-    val listState = rememberLazyListState()
     val arabicFont = FontFamily(Font(R.font.uthmani))
-
-    LaunchedEffect(state.jumpToken) {
-        val target = (state.selectedAyah - 1).coerceIn(0, surah.ayahs.lastIndex)
-        listState.animateScrollToItem(target)
-    }
-    LaunchedEffect(surah.number) {
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { index ->
-                surah.ayahs.getOrNull(index)?.let {
-                    viewModel.updateLastRead(AyahRef(surah.number, it.number))
-                }
-            }
-    }
 
     Column(
         modifier = Modifier
@@ -301,29 +303,198 @@ private fun ReaderScreen(
             }
         }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 12.dp,
-                end = 12.dp,
-                bottom = 16.dp,
-            ),
-        ) {
-            items(surah.ayahs, key = { it.number }) { ayah ->
-                AyahCard(
-                    surah = surah,
-                    ayah = ayah,
-                    fontScale = state.fontScale,
-                    showTranslation = state.showTranslation,
-                    arabicFont = arabicFont,
-                    bookmarked = viewModel.isBookmarked(AyahRef(surah.number, ayah.number)),
-                    onBookmark = { viewModel.toggleBookmark(AyahRef(surah.number, ayah.number)) },
-                    onOpen = { viewModel.updateLastRead(AyahRef(surah.number, ayah.number)) },
+        if (state.flowingMode) {
+            MushafFlowReader(
+                surah = surah,
+                fontScale = state.fontScale,
+                showTranslation = state.showTranslation,
+                arabicFont = arabicFont,
+                onAyahTap = {
+                    viewModel.openAyah(it)
+                    viewModel.updateLastRead(it)
+                },
+            )
+        } else {
+            SeparatedAyahReader(
+                surah = surah,
+                state = state,
+                viewModel = viewModel,
+                arabicFont = arabicFont,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SeparatedAyahReader(
+    surah: Surah,
+    state: QuranUiState,
+    viewModel: QuranViewModel,
+    arabicFont: FontFamily,
+) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(state.jumpToken) {
+        val target = (state.selectedAyah - 1).coerceIn(0, surah.ayahs.lastIndex)
+        listState.animateScrollToItem(target)
+    }
+    LaunchedEffect(surah.number) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { index ->
+                surah.ayahs.getOrNull(index)?.let {
+                    viewModel.updateLastRead(AyahRef(surah.number, it.number))
+                }
+            }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 12.dp,
+            end = 12.dp,
+            bottom = 16.dp,
+        ),
+    ) {
+        items(surah.ayahs, key = { it.number }) { ayah ->
+            AyahCard(
+                surah = surah,
+                ayah = ayah,
+                fontScale = state.fontScale,
+                showTranslation = state.showTranslation,
+                arabicFont = arabicFont,
+                bookmarked = viewModel.isBookmarked(AyahRef(surah.number, ayah.number)),
+                onBookmark = { viewModel.toggleBookmark(AyahRef(surah.number, ayah.number)) },
+                onOpen = { viewModel.updateLastRead(AyahRef(surah.number, ayah.number)) },
+            )
+        }
+    }
+}
+
+private const val AYAH_ANNOTATION = "ayah"
+
+@Composable
+private fun MushafFlowReader(
+    surah: Surah,
+    fontScale: Float,
+    showTranslation: Boolean,
+    arabicFont: FontFamily,
+    onAyahTap: (AyahRef) -> Unit,
+) {
+    val text = remember(surah.number) { buildMushafText(surah) }
+    var textLayout by remember(surah.number) { mutableStateOf<TextLayoutResult?>(null) }
+    val arabicFontSize = (27 * fontScale).sp
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            bottom = 24.dp,
+        ),
+    ) {
+        item {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                Text(
+                    text = text,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "${surah.latinName} Mushaf reading mode" }
+                        .pointerInput(text, textLayout) {
+                            detectTapGestures { position ->
+                                val offset = textLayout?.getOffsetForPosition(position) ?: return@detectTapGestures
+                                text.getStringAnnotations(AYAH_ANNOTATION, offset, offset)
+                                    .firstOrNull()
+                                    ?.item
+                                    ?.split(":")
+                                    ?.takeIf { it.size == 2 }
+                                    ?.let { parts ->
+                                        onAyahTap(
+                                            AyahRef(
+                                                surah = parts[0].toIntOrNull() ?: return@let,
+                                                ayah = parts[1].toIntOrNull() ?: return@let,
+                                            ),
+                                        )
+                                    }
+                            }
+                        },
+                    fontFamily = arabicFont,
+                    fontSize = arabicFontSize,
+                    lineHeight = (62 * fontScale).sp,
+                    textAlign = TextAlign.Start,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    onTextLayout = { textLayout = it },
                 )
             }
         }
+        if (showTranslation) {
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                Text(
+                    "Indonesian translation",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(4.dp))
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                    surah.ayahs.forEach { ayah ->
+                        Row(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                toArabicIndic(ayah.number),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                ayah.translation,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+private fun buildMushafText(surah: Surah): AnnotatedString = buildAnnotatedString {
+    surah.ayahs.forEachIndexed { index, ayah ->
+        val start = length
+        append(ayah.arabic.trim())
+        append(" ")
+        append("﴿")
+        append(toArabicIndic(ayah.number))
+        append("﴾")
+        if (index != surah.ayahs.lastIndex) append(" ")
+        addStringAnnotation(
+            tag = AYAH_ANNOTATION,
+            annotation = "${surah.number}:${ayah.number}",
+            start = start,
+            end = length,
+        )
+    }
+}
+
+private fun toArabicIndic(number: Int): String {
+    return number.toString().map { digit ->
+        when (digit) {
+            '0' -> '٠'
+            '1' -> '١'
+            '2' -> '٢'
+            '3' -> '٣'
+            '4' -> '٤'
+            '5' -> '٥'
+            '6' -> '٦'
+            '7' -> '٧'
+            '8' -> '٨'
+            else -> '٩'
+        }
+    }.joinToString("")
 }
 
 @Composable
@@ -546,6 +717,21 @@ private fun SettingsScreen(
                         Switch(
                             checked = state.showTranslation,
                             onCheckedChange = viewModel::setShowTranslation,
+                        )
+                    },
+                )
+            }
+            item {
+                ListItem(
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
+                    headlineContent = { Text("Mushaf flow mode") },
+                    supportingContent = {
+                        Text("Join ayahs in one RTL passage with Arabic-Indic verse markers")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = state.flowingMode,
+                            onCheckedChange = viewModel::setFlowingMode,
                         )
                     },
                 )
