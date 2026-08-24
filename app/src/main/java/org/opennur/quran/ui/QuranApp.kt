@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,7 +44,6 @@ import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -60,7 +61,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -193,6 +193,7 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
                     state = state,
                     viewModel = viewModel,
                     contentPadding = paddingValues,
+                    onBack = { destination = Destination.READER.name },
                     onOpen = {
                         viewModel.openAyah(it)
                         destination = Destination.READER.name
@@ -203,6 +204,7 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
                     state = state,
                     viewModel = viewModel,
                     contentPadding = paddingValues,
+                    onBack = { destination = Destination.READER.name },
                 )
             }
         }
@@ -260,6 +262,42 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun CompactTopBar(
+    title: String,
+    subtitle: String? = null,
+    navigationIcon: (@Composable () -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            navigationIcon?.invoke()
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            actions()
+        }
+    }
+}
+
+@Composable
 private fun ReaderTopBar(
     flowingMode: Boolean,
     onToggleFlow: () -> Unit,
@@ -267,17 +305,9 @@ private fun ReaderTopBar(
     onBookmarks: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    CenterAlignedTopAppBar(
-        title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Quran", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Read offline",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
+    CompactTopBar(
+        title = "Quran",
+        subtitle = "Read offline",
         actions = {
             IconButton(onClick = onToggleFlow) {
                 Icon(
@@ -295,9 +325,6 @@ private fun ReaderTopBar(
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
             }
         },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-        ),
     )
 }
 
@@ -784,8 +811,8 @@ private fun SearchScreen(
             .padding(contentPadding)
             .padding(horizontal = 16.dp),
     ) {
-        CenterAlignedTopAppBar(
-            title = { Text("Search") },
+        CompactTopBar(
+            title = "Search",
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -805,6 +832,14 @@ private fun SearchScreen(
             },
             placeholder = { Text("Arabic or Indonesian") },
         )
+        if (state.query.isNotBlank()) {
+            Text(
+                "${state.searchResults.size} results",
+                modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (state.query.isNotBlank() && state.searchResults.isEmpty()) {
             EmptyState("No ayahs found")
         } else {
@@ -845,6 +880,7 @@ private fun BookmarksScreen(
     state: QuranUiState,
     viewModel: QuranViewModel,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
+    onBack: () -> Unit,
     onOpen: (AyahRef) -> Unit,
 ) {
     Column(
@@ -852,7 +888,14 @@ private fun BookmarksScreen(
             .fillMaxSize()
             .padding(contentPadding),
     ) {
-        CenterAlignedTopAppBar(title = { Text("Saved ayahs") })
+        CompactTopBar(
+            title = "Saved ayahs",
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+        )
         val bookmarks = state.bookmarks.mapNotNull { key ->
             val parts = key.split(":")
             val surahNumber = parts.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
@@ -896,13 +939,21 @@ private fun SettingsScreen(
     state: QuranUiState,
     viewModel: QuranViewModel,
     contentPadding: androidx.compose.foundation.layout.PaddingValues,
+    onBack: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
     ) {
-        CenterAlignedTopAppBar(title = { Text("Settings") })
+        CompactTopBar(
+            title = "Settings",
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+        )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
