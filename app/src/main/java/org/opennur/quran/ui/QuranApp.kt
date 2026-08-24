@@ -111,7 +111,7 @@ fun QuranApp(viewModel: QuranViewModel = viewModel()) {
                 }
             },
             bottomBar = {
-                if (currentDestination != Destination.SEARCH) {
+                if (currentDestination != Destination.SEARCH && currentDestination != Destination.READER) {
                     AppNavigation(
                         destination = currentDestination,
                         onDestinationSelected = { destination = it.name },
@@ -269,18 +269,19 @@ private fun ReaderScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(contentPadding),
+            .padding(contentPadding)
+            .navigationBarsPadding(),
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
                 .clip(MaterialTheme.shapes.large)
                 .clickable(onClick = onPickSurah),
             color = MaterialTheme.colorScheme.primaryContainer,
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -304,9 +305,9 @@ private fun ReaderScreen(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                bottom = 24.dp,
+                start = 12.dp,
+                end = 12.dp,
+                bottom = 16.dp,
             ),
         ) {
             items(surah.ayahs, key = { it.number }) { ayah ->
@@ -345,14 +346,16 @@ private fun AyahCard(
             containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Surface(
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(28.dp),
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
@@ -376,19 +379,19 @@ private fun AyahCard(
                     text = ayah.arabic,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
+                        .padding(top = 2.dp),
                     fontFamily = arabicFont,
                     fontSize = (27 * fontScale).sp,
-                    lineHeight = (50 * fontScale).sp,
+                    lineHeight = (62 * fontScale).sp,
                     textAlign = TextAlign.Start,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }
             if (showTranslation) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Text(
                     text = ayah.translation,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
