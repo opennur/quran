@@ -94,6 +94,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import org.opennur.quran.R
 import org.opennur.quran.data.Ayah
 import org.opennur.quran.data.AyahRef
@@ -281,7 +283,11 @@ private fun CompactTopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             navigationIcon?.invoke()
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp),
+            ) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 if (subtitle != null) {
                     Text(
@@ -503,12 +509,13 @@ private fun SeparatedAyahReader(
 
     LaunchedEffect(state.jumpToken) {
         val target = (state.selectedAyah - 1).coerceIn(0, surah.ayahs.lastIndex)
-        listState.animateScrollToItem(target)
+        listState.scrollToItem(target)
     }
     LaunchedEffect(surah.number) {
         snapshotFlow { listState.firstVisibleItemIndex }
             .distinctUntilChanged()
-            .collect { index ->
+            .collectLatest { index ->
+                delay(250)
                 surah.ayahs.getOrNull(index)?.let {
                     viewModel.updateLastRead(AyahRef(surah.number, it.number))
                 }
@@ -542,7 +549,7 @@ private fun SeparatedAyahReader(
 }
 
 private const val AYAH_ANNOTATION = "ayah"
-private const val FLOW_CHUNK_SIZE = 48
+private const val FLOW_CHUNK_SIZE = 24
 
 @Composable
 private fun MushafFlowReader(
@@ -566,7 +573,7 @@ private fun MushafFlowReader(
         targetOffset = null
         targetChunkReady = false
         targetApplied = false
-        listState.animateScrollToItem(targetChunk)
+        listState.scrollToItem(targetChunk)
         targetChunkReady = true
     }
     LaunchedEffect(jumpToken, targetOffset, targetChunkReady) {
@@ -656,8 +663,15 @@ private fun FlowingChunk(
     val text = remember(ayahs.first().number, nextAyah?.number, tajwidEnabled) {
         buildMushafText(surahNumber, ayahs, nextAyah, tajwidEnabled)
     }
-    var textLayout by remember(ayahs.first().number, tajwidEnabled) {
+    val textLayout = remember(ayahs.first().number, tajwidEnabled) {
         mutableStateOf<TextLayoutResult?>(null)
+    }
+    val targetStart = remember(ayahs.first().number, nextAyah?.number, tajwidEnabled, targetAyah) {
+        targetAyah?.let { ayah ->
+            text.getStringAnnotations(AYAH_ANNOTATION, 0, text.length)
+                .firstOrNull { annotation -> annotation.item == "$surahNumber:$ayah" }
+                ?.start
+        }
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -666,9 +680,10 @@ private fun FlowingChunk(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = "Mushaf reading passage" }
-                .pointerInput(text, textLayout) {
+                .pointerInput(text) {
                     detectTapGestures { position ->
-                        val offset = textLayout?.getOffsetForPosition(position) ?: return@detectTapGestures
+                        val offset = textLayout.value?.getOffsetForPosition(position)
+                            ?: return@detectTapGestures
                         text.getStringAnnotations(AYAH_ANNOTATION, offset, offset)
                             .firstOrNull()
                             ?.item
@@ -691,13 +706,10 @@ private fun FlowingChunk(
             textAlign = TextAlign.Start,
             color = MaterialTheme.colorScheme.onSurface,
             onTextLayout = { layout ->
-                textLayout = layout
-                val offset = targetAyah?.let { ayah ->
-                    text.getStringAnnotations(AYAH_ANNOTATION, 0, text.length)
-                        .firstOrNull { annotation -> annotation.item == "$surahNumber:$ayah" }
-                        ?.let { annotation -> layout.getBoundingBox(annotation.start).top }
+                textLayout.value = layout
+                if (targetStart != null) {
+                    onTargetOffset(layout.getBoundingBox(targetStart).top)
                 }
-                if (targetAyah != null) onTargetOffset(offset)
             },
         )
     }
@@ -798,6 +810,13 @@ private fun AyahCard(
     onBookmark: () -> Unit,
     onOpen: () -> Unit,
 ) {
+    val arabicText = remember(ayah.arabic, nextAyah?.arabic, tajwidEnabled) {
+        tajwidAnnotatedText(
+            text = ayah.arabic,
+            nextText = nextAyah?.arabic,
+            enabled = tajwidEnabled,
+        )
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -837,11 +856,7 @@ private fun AyahCard(
             }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 Text(
-                    text = tajwidAnnotatedText(
-                        text = ayah.arabic,
-                        nextText = nextAyah?.arabic,
-                        enabled = tajwidEnabled,
-                    ),
+                    text = arabicText,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 2.dp),
