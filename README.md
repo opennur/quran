@@ -28,16 +28,17 @@ The app uses package `org.opennur.quran`.
 
 The generated APK is under `app/build/outputs/apk/debug/`.
 
-Android smoke tests run on an emulator with:
+Android smoke tests are included under `app/src/androidTest/` and compile with:
 
 ```bash
-./gradlew connectedDebugAndroidTest
+./gradlew compileDebugAndroidTestKotlin
 ```
 
 ## Release CI/CD
 
-GitHub Actions runs unit tests, Android lint, Detekt, the debug build, and
-emulator smoke tests on pushes and pull requests. The release workflow runs
+GitHub Actions runs unit tests, Android-test compilation, Android lint, Detekt,
+and the debug build on pushes and pull requests. Emulator execution is disabled
+because hosted emulator provisioning is not reliable in this environment. The release workflow runs
 for `v*` tags or manual dispatch and publishes a signed APK.
 
 Configure these repository secrets before using the release workflow:

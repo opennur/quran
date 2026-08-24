@@ -34,7 +34,7 @@ jobs:
         run: python3 tools/validate_quran_data.py
 
       - name: Run tests, lint, Detekt, and debug build
-        run: ./gradlew testDebugUnitTest lintDebug detekt assembleDebug --no-daemon --stacktrace
+        run: ./gradlew testDebugUnitTest compileDebugAndroidTestKotlin lintDebug detekt assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -42,31 +42,3 @@ jobs:
           name: quran-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-  smoke:
-    name: Android smoke tests
-    needs: quality
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Run emulator smoke tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: Pixel_2
-          force-avd-creation: true
-          disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest --no-daemon --stacktrace
