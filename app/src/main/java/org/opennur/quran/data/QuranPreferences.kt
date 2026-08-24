@@ -1,6 +1,7 @@
 package org.opennur.quran.data
 
 import android.content.Context
+import androidx.core.content.edit
 
 class QuranPreferences(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(
@@ -16,10 +17,10 @@ class QuranPreferences(context: Context) {
     }
 
     fun saveLastRead(ref: AyahRef) {
-        preferences.edit()
-            .putInt(KEY_LAST_SURAH, ref.surah)
-            .putInt(KEY_LAST_AYAH, ref.ayah)
-            .apply()
+        preferences.edit {
+            putInt(KEY_LAST_SURAH, ref.surah)
+            putInt(KEY_LAST_AYAH, ref.ayah)
+        }
     }
 
     fun bookmarks(): Set<String> {
@@ -27,37 +28,37 @@ class QuranPreferences(context: Context) {
     }
 
     fun saveBookmarks(bookmarks: Set<String>) {
-        preferences.edit().putStringSet(KEY_BOOKMARKS, bookmarks).apply()
+        preferences.edit { putStringSet(KEY_BOOKMARKS, bookmarks) }
     }
 
     fun showTranslation(): Boolean = preferences.getBoolean(KEY_SHOW_TRANSLATION, true)
 
     fun saveShowTranslation(show: Boolean) {
-        preferences.edit().putBoolean(KEY_SHOW_TRANSLATION, show).apply()
+        preferences.edit { putBoolean(KEY_SHOW_TRANSLATION, show) }
     }
 
     fun fontScale(): Float = preferences.getFloat(KEY_FONT_SCALE, 1f)
 
     fun saveFontScale(scale: Float) {
-        preferences.edit().putFloat(KEY_FONT_SCALE, scale).apply()
+        preferences.edit { putFloat(KEY_FONT_SCALE, scale) }
     }
 
     fun darkMode(): Boolean = preferences.getBoolean(KEY_DARK_MODE, false)
 
     fun saveDarkMode(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_DARK_MODE, enabled).apply()
+        preferences.edit { putBoolean(KEY_DARK_MODE, enabled) }
     }
 
     fun flowingMode(): Boolean = preferences.getBoolean(KEY_FLOWING_MODE, false)
 
     fun saveFlowingMode(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_FLOWING_MODE, enabled).apply()
+        preferences.edit { putBoolean(KEY_FLOWING_MODE, enabled) }
     }
 
     fun tajwidEnabled(): Boolean = preferences.getBoolean(KEY_TAJWID_ENABLED, true)
 
     fun saveTajwidEnabled(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_TAJWID_ENABLED, enabled).apply()
+        preferences.edit { putBoolean(KEY_TAJWID_ENABLED, enabled) }
     }
 
     companion object {

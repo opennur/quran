@@ -1,0 +1,46 @@
+config:
+  validation: true
+  warningsAsErrors: true
+
+build:
+  maxIssues: 0
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - "Composable"
+
+complexity:
+  LongMethod:
+    active: false
+  LongParameterList:
+    active: false
+  LargeClass:
+    active: false
+  TooManyFunctions:
+    active: false
+  NestedBlockDepth:
+    active: false
+  CyclomaticComplexMethod:
+    active: false
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    active: false
+  WildcardImport:
+    active: false
+  UnusedPrivateMember:
+    active: false
+  UseIfInsteadOfWhen:
+    active: false
+  MayBeConst:
+    active: false
+  DataClassContainsFunctions:
+    active: false
+
+formatting:
+  active: false

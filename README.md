@@ -20,11 +20,36 @@ The app uses package `org.opennur.quran`.
 ## Build
 
 ```bash
-./gradlew test
+./gradlew testDebugUnitTest
+./gradlew lintDebug
+./gradlew detekt
 ./gradlew assembleDebug
 ```
 
 The generated APK is under `app/build/outputs/apk/debug/`.
+
+Android smoke tests run on an emulator with:
+
+```bash
+./gradlew connectedDebugAndroidTest
+```
+
+## Release CI/CD
+
+GitHub Actions runs unit tests, Android lint, Detekt, the debug build, and
+emulator smoke tests on pushes and pull requests. The release workflow runs
+for `v*` tags or manual dispatch and publishes a signed APK.
+
+Configure these repository secrets before using the release workflow:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+The local release keystore and `keystore.properties` are intentionally ignored
+by Git. Keep the signing key backed up because future Android updates must use
+the same key.
 
 ## Content
 

@@ -32,7 +32,6 @@ object TajwidColorizer {
 
     private val TANWIN = setOf('\u064B', '\u064C', '\u064D')
     private val VOWEL_MARKS = setOf(FATHA, DAMMA, KASRA) + TANWIN
-    private val MAD_LETTERS = setOf('ا', 'ي', 'و')
     private val IDGHAM_LETTERS = "ينمو".toSet()
     private val IDGHAM_WITHOUT_GHUNNAH = "لر".toSet()
     private val IKHFA_LETTERS = "تثجدذزسشصضطظفقك".toSet()
